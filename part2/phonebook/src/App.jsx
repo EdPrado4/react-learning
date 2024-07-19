@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import PersonServices from './backend/personHandler'
 
-const Persons = ({ personsList }) => {
+const Persons = ({ personsList, onDelete }) => {
   return(
     personsList.map(
-      person => <p key={person.id}> {person.name} {person.number}</p>
+      person =>
+        <p key={person.id}>
+          {person.name}
+          {person.number}
+          <Button text='delete' onClick={() => onDelete(person)} />
+        </p>
     )
   )
 }
@@ -36,11 +41,9 @@ const App = () => {
   const [query, setQuery] = useState('')
 
   const PersonHook = () => {
-    axios
-      .get('http://localhost:3001/persons')
-      .then( response => {
-        setPersons(response.data)
-      } )
+    PersonServices
+    .getAllPersons()
+    .then( allPersons => setPersons(allPersons))
   }
 
   useEffect(PersonHook, [])
@@ -64,25 +67,44 @@ const App = () => {
 
   const addPerson = (event) => {
     event.preventDefault()
-    const updatedPersons = [
-      ...persons,
-      {
+    const newPerson = {
         name: newName,
         number: newNumber,
-        id: persons.length +1
+        id: (persons.length +1).toString()
       }
-    ]
+
     if ( newName === '' || newNumber === '') {
       alert('You must provide a non-empty name and number')
       return
     }
-    if (persons.find( person => person.name === newName ))
-      alert(`${newName} is already added to phonebook`)
-    else
-       setPersons(updatedPersons)
+    const duplicateEntry = persons.find( person => person.name === newName )
+    if (duplicateEntry){
+      if (duplicateEntry.number !== newNumber) {
+        if (window.confirm(`${newName} is already added to phonebook. Replace old number with new number?`)){
+          const updatedPerson = {...duplicateEntry, number:newNumber}
+          PersonServices
+            .updateNumber(updatedPerson)
+            .then( () => PersonHook() )
 
+          }
+        }
+        else
+          alert(`${newName} is already added to phonebook with the same number!`)
+      }
+    else
+      PersonServices
+        .addPerson(newPerson)
+        .then( () => PersonHook() )
     setNewName('')
     setNewNumber('')
+  }
+
+  const deletePerson = deletedPerson => {
+    if (window.confirm(`The following action will delete ${deletedPerson.name},  continue?`)){
+      PersonServices
+        .deletePerson(deletedPerson.id)
+        .then( () => PersonHook() )
+      }
   }
 
 
@@ -97,7 +119,7 @@ const App = () => {
         <Button text='Add' onClick={addPerson} />
       </form>
       <h3>Numbers</h3>
-          {query ? <Persons personsList={filterPerson(query)}/> : <Persons personsList={persons}/>}
+          {query ? <Persons personsList={filterPerson(query)} onDelete={deletePerson}/> : <Persons personsList={persons} onDelete={deletePerson}/>}
     </div>
   )
 }
